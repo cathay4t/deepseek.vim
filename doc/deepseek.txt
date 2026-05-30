@@ -1,0 +1,118 @@
+*deepseek.txt*  AI-powered code completion using DeepSeek API
+
+==============================================================================
+INTRODUCTION                                *deepseek*
+
+Deepseek.vim is a Vim/Neovim plugin that provides AI-powered code completions
+using the DeepSeek API. It mimics the interface of copilot.vim but uses
+DeepSeek's prefix completion API instead of GitHub Copilot.
+
+Requirements:
+  - Vim >= 8.0 with |InsertLeavePre| event, or Neovim >= 0.5
+  - Python 3 (for the agent script)
+  - A DeepSeek API key from https://platform.deepseek.com
+
+==============================================================================
+INSTALLATION                                    *deepseek-installation*
+
+Using a plugin manager:
+
+  Plug 'cathay4t/deepseek.vim'   " vim-plug
+  use 'cathay4t/deepseek.vim'    " lazy.nvim
+
+Configuration:
+
+  let g:deepseek_api_key = 'sk-your-api-key'
+
+Or set the DEEPSEEK_VIM_API_KEY environment variable.
+
+==============================================================================
+USAGE                                           *deepseek-usage*
+
+By default, the plugin starts automatically and offers completions as you
+type. Accept a suggestion with <Tab>, dismiss with <C-]>, and cycle with
+<M-]> / <M-[>.
+
+Commands:
+  :Deepseek                   Show status
+  :Deepseek enable            Enable completions
+  :Deepseek disable           Disable completions
+  :Deepseek toggle            Toggle completions
+  :Deepseek setup             Configure API key
+  :Deepseek restart           Restart the agent
+  :Deepseek version           Show version info
+  :Deepseek help              Open help
+
+==============================================================================
+OPTIONS                                         *deepseek-options*
+
+                        *g:deepseek_enabled*
+g:deepseek_enabled      Enable or disable completions globally (default 1).
+
+                        *g:deepseek_api_key*
+g:deepseek_api_key      Your DeepSeek API key. Falls back to the
+                        DEEPSEEK_VIM_API_KEY environment variable.
+
+                        *g:deepseek_model*
+g:deepseek_model        The model to use (default 'deepseek-v4-flash').
+                        Other options: 'deepseek-v4-pro'.
+
+                        *g:deepseek_max_tokens*
+g:deepseek_max_tokens   Maximum tokens in the completion (default 256).
+
+                        *g:deepseek_idle_delay*
+g:deepseek_idle_delay   Debounce delay in ms (default 1000).
+
+                        *g:deepseek_hide_during_completion*
+g:deepseek_hide_during_completion
+                        Hide suggestions during popup menu (default 1).
+
+                        *g:deepseek_filetypes*
+g:deepseek_filetypes    Dict mapping filetype -> enabled/disabled.
+                        E.g. {'*': v:false, 'python': v:true}
+
+                        *g:deepseek_no_tab_map*
+g:deepseek_no_tab_map   Disable <Tab> mapping (default 0).
+
+                        *g:deepseek_no_maps*
+g:deepseek_no_maps      Disable all plugin mappings (default 0).
+
+                        *g:deepseek_tab_fallback*
+g:deepseek_tab_fallback Fallback when no suggestion is displayed (default
+                        "\<C-N>" if pumvisible, else "\t").
+
+                        *g:deepseek_python_command*
+g:deepseek_python_command
+                        Python executable (default 'python3').
+
+                        *b:deepseek_enabled*
+b:deepseek_enabled      Per-buffer enable override (v:true to force enable).
+
+                        *b:deepseek_disabled*
+b:deepseek_disabled     Per-buffer disable override.
+
+==============================================================================
+MAPPINGS                                        *deepseek-mappings*
+
+  Key                     Action           Plug mapping ~
+  <Tab>                   Accept suggestion
+  <C-]>                   Dismiss          <Plug>(deepseek-dismiss)
+  <M-]>                   Next             <Plug>(deepseek-next)
+  <M-[>                   Previous         <Plug>(deepseek-previous)
+  <M-\>                   Suggest          <Plug>(deepseek-suggest)
+  <M-Right>               Accept word      <Plug>(deepseek-accept-word)
+  <M-C-Right>             Accept line      <Plug>(deepseek-accept-line)
+
+==============================================================================
+AGENT                                           *deepseek-agent*
+
+The plugin uses a Python agent process (agent/deepseek_agent.py) to make
+HTTP requests to the DeepSeek API. The agent receives JSON-RPC style
+requests on stdin and returns responses on stdout.
+
+The agent supports two methods:
+  - 'complete': Uses the Chat Prefix Completion API (supports all models)
+  - 'fim': Uses the FIM API (only deepseek-v4-pro, not yet exposed)
+
+==============================================================================
+ vim:tw=78:ts=8:ft=help:norl:
