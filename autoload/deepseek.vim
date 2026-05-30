@@ -115,6 +115,9 @@ function! s:Complete(...) abort
           \ 'request': deepseek#client#Request('complete', params)}
   endif
   let request = b:_deepseek.request
+  if empty(request)
+    return
+  endif
   if !a:0
     return request.Await()
   else

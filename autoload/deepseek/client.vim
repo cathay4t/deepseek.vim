@@ -78,6 +78,12 @@ function! s:OnExit(instance, job, code) abort
   endif
 endfunction
 
+function! s:OnInitError(instance, request) abort
+  if !has_key(a:instance, 'startup_error') && a:request.status ==# 'error'
+    let a:instance.startup_error = 'Init failed: ' . get(get(a:request, 'error', {}), 'message', '')
+  endif
+endfunction
+
 function! s:Send(instance, data) abort
   if !has_key(a:instance, 'job')
     return v:false
@@ -171,7 +177,10 @@ function! s:StartAgent() abort
   let s:instance = instance
 
   let api_key = get(g:, 'deepseek_api_key', '')
-  call instance.Request('init', {'api_key': api_key})
+  let init_req = instance.Request('init', {'api_key': api_key})
+  if !empty(init_req)
+    call deepseek#client#Error(init_req, function('s:OnInitError', [instance]))
+  endif
 
   return instance
 endfunction
@@ -186,8 +195,11 @@ function! s:CloseAgent() dict abort
 endfunction
 
 function! deepseek#client#Start() abort
-  if exists('s:instance') && has_key(s:instance, 'job')
-    return s:instance
+  if exists('s:instance')
+    if has_key(s:instance, 'job') && job_status(s:instance.job) ==# 'run'
+      return s:instance
+    endif
+    call remove(s:, 'instance')
   endif
   let result = s:StartAgent()
   if type(result) == v:t_string
