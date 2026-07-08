@@ -355,10 +355,15 @@ function! deepseek#Schedule() abort
   if exists('b:_deepseek.suggestions')
     let pc = get(b:_deepseek, 'preview_col', -1)
     let pl = get(b:_deepseek, 'preview_line', -1)
-    if pl == line('.') && pc >= 1 && col('.') > pc
-      let typed = strpart(getline('.'), pc - 1, col('.') - pc)
-      let suggestion = get(b:_deepseek, 'preview_suggestion', '')
-      if !empty(suggestion) && strpart(suggestion, 0, len(typed)) !=# typed
+    if pl == line('.') && pc >= 1
+      if col('.') > pc
+        let typed = strpart(getline('.'), pc - 1, col('.') - pc)
+        let suggestion = get(b:_deepseek, 'preview_suggestion', '')
+        if !empty(suggestion) && strpart(suggestion, 0, len(typed)) !=# typed
+          call deepseek#Clear()
+          return
+        endif
+      elseif col('.') < pc
         call deepseek#Clear()
         return
       endif
