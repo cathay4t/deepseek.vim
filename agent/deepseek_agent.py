@@ -48,7 +48,9 @@ def _reset_connection():
 
 def _make_request(path, body, api_key, retries=1):
     if not api_key:
-        return {"error": "API key not configured. Set g:deepseek_api_key or DEEPSEEK_VIM_API_KEY env"}
+        return {
+            "error": "API key not configured. Set g:deepseek_api_key or DEEPSEEK_VIM_API_KEY env"
+        }
 
     data = json.dumps(body).encode("utf-8")
     headers = {
@@ -60,7 +62,7 @@ def _make_request(path, body, api_key, retries=1):
     for attempt in range(retries + 1):
         if attempt > 0:
             _reset_connection()
-            time.sleep(2 ** attempt)
+            time.sleep(2**attempt)
         try:
             conn = _get_connection()
             conn.request("POST", path, body=data, headers=headers)
@@ -198,7 +200,9 @@ def main():
             request = json.loads(line)
         except json.JSONDecodeError as e:
             sys.stdout.write(
-                json.dumps({"id": 0, "error": {"message": "JSON parse error: " + str(e)}})
+                json.dumps(
+                    {"id": 0, "error": {"message": "JSON parse error: " + str(e)}}
+                )
                 + "\n"
             )
             sys.stdout.flush()

@@ -250,6 +250,7 @@ function! s:UpdatePreview() abort
     if exists('b:_deepseek')
       let b:_deepseek.preview_line = line('.')
       let b:_deepseek.preview_col = col('.')
+      let b:_deepseek.preview_suggestion = text
     endif
     if s:has_nvim_ghost_text
       let data = {'id': 1}
@@ -352,6 +353,16 @@ function! deepseek#Schedule() abort
     return
   endif
   if exists('b:_deepseek.suggestions')
+    let pc = get(b:_deepseek, 'preview_col', -1)
+    let pl = get(b:_deepseek, 'preview_line', -1)
+    if pl == line('.') && pc >= 1 && col('.') > pc
+      let typed = strpart(getline('.'), pc - 1, col('.') - pc)
+      let suggestion = get(b:_deepseek, 'preview_suggestion', '')
+      if !empty(suggestion) && strpart(suggestion, 0, len(typed)) !=# typed
+        call deepseek#Clear()
+        return
+      endif
+    endif
     call s:UpdatePreview()
   endif
   let delay = get(g:, 'deepseek_idle_delay', 1000)
@@ -378,29 +389,6 @@ endfunction
 
 function! deepseek#OnCursorMovedI() abort
   return deepseek#Schedule()
-endfunction
-
-function! deepseek#OnTextChangedI() abort
-  if !exists('b:_deepseek.suggestions')
-    return
-  endif
-  let prev_line = get(b:_deepseek, 'preview_line', -1)
-  let prev_col = get(b:_deepseek, 'preview_col', -1)
-  if prev_line !=# line('.') || prev_col < 0
-    return
-  endif
-  let cur_col = col('.')
-  if cur_col <= prev_col
-    return
-  endif
-  let typed = strpart(getline('.'), prev_col - 1, cur_col - prev_col)
-  let choice = get(b:_deepseek.suggestions, b:_deepseek.choice, {})
-  let suggestion = get(choice, 'text', '')
-  let suggestion = substitute(substitute(suggestion, '\r\n', '\n', 'g'), '\r', '\n', 'g')
-  let suggestion = split(suggestion, '\n')[0]
-  if strpart(suggestion, 0, len(typed)) !=# typed
-    call deepseek#Clear()
-  endif
 endfunction
 
 function! deepseek#OnBufUnload() abort
