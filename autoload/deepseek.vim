@@ -1,5 +1,14 @@
 scriptencoding utf-8
 
+let s:error_log = []
+
+function! s:LogError(msg) abort
+  call insert(s:error_log, a:msg)
+  if len(s:error_log) > 20
+    call remove(s:error_log, 20, -1)
+  endif
+endfunction
+
 let s:has_nvim_ghost_text = has('nvim-0.8')
 let s:vim_minimum_version = '9.0.0185'
 let s:has_vim_ghost_text = has('patch-' . s:vim_minimum_version) && has('textprop')
@@ -20,7 +29,14 @@ function! deepseek#Init(...) abort
 endfunction
 
 function! s:Running() abort
-  return deepseek#client#Running()
+  if !deepseek#client#Running()
+    return 0
+  endif
+  let instance = deepseek#client#Instance()
+  if !empty(instance) && !empty(get(instance, 'startup_error', v:null))
+    return 0
+  endif
+  return 1
 endfunction
 
 function! s:Start() abort
@@ -30,6 +46,8 @@ function! s:Start() abort
   let result = deepseek#client#Start()
   if type(result) == v:t_string
     let s:startup_error = result
+  else
+    let s:startup_error = deepseek#client#StartupError()
   endif
 endfunction
 
@@ -51,7 +69,6 @@ endfunction
 
 function! deepseek#Dismiss() abort
   call deepseek#Clear()
-  call s:ClearPreview()
   return ''
 endfunction
 
@@ -118,13 +135,9 @@ function! s:Complete(...) abort
   if empty(request)
     return
   endif
-  if !a:0
-    return request.Await()
-  else
-    call deepseek#client#Result(request, function(a:1, [b:_deepseek]))
-    if a:0 > 1
-      call deepseek#client#Error(request, function(a:2, [b:_deepseek]))
-    endif
+  call deepseek#client#Result(request, function(a:1, [b:_deepseek]))
+  if a:0 > 1
+    call deepseek#client#Error(request, function(a:2, [b:_deepseek]))
   endif
 endfunction
 
@@ -158,12 +171,16 @@ function! s:SuggestionTextWithAdjustments() abort
       return [suggestion, 0, line_after, choice]
     endif
   catch
+    call s:LogError('SuggestionTextWithAdjustments: ' . v:exception)
   endtry
   return empty
 endfunction
 
 function! s:Advance(count, context, ...) abort
   if a:context isnot# get(b:, '_deepseek', {})
+    return
+  endif
+  if empty(get(a:context, 'suggestions', []))
     return
   endif
   let a:context.choice += a:count
@@ -230,6 +247,10 @@ function! s:UpdatePreview() abort
       let annot = '(' . (b:_deepseek.choice + 1) . '/' . len(b:_deepseek.suggestions) . ')'
     endif
     call s:ClearPreview()
+    if exists('b:_deepseek')
+      let b:_deepseek.preview_line = line('.')
+      let b:_deepseek.preview_col = col('.')
+    endif
     if s:has_nvim_ghost_text
       let data = {'id': 1}
       let data.virt_text_pos = 'overlay'
@@ -274,6 +295,7 @@ function! s:UpdatePreview() abort
       endif
     endif
   catch
+    call s:LogError('UpdatePreview: ' . v:exception)
   endtry
 endfunction
 
@@ -310,6 +332,7 @@ function! deepseek#Suggest() abort
   try
     call s:Complete(function('s:HandleTriggerResult'), function('s:HandleTriggerError'))
   catch
+    call s:LogError('Suggest: ' . v:exception)
   endtry
   return ''
 endfunction
@@ -328,7 +351,9 @@ function! deepseek#Schedule() abort
     call deepseek#Clear()
     return
   endif
-  call s:UpdatePreview()
+  if exists('b:_deepseek.suggestions')
+    call s:UpdatePreview()
+  endif
   let delay = get(g:, 'deepseek_idle_delay', 1000)
   call timer_stop(get(g:, '_deepseek_timer', -1))
   let g:_deepseek_timer = timer_start(delay, function('s:Trigger', [bufnr('')]))
@@ -355,6 +380,29 @@ function! deepseek#OnCursorMovedI() abort
   return deepseek#Schedule()
 endfunction
 
+function! deepseek#OnTextChangedI() abort
+  if !exists('b:_deepseek.suggestions')
+    return
+  endif
+  let prev_line = get(b:_deepseek, 'preview_line', -1)
+  let prev_col = get(b:_deepseek, 'preview_col', -1)
+  if prev_line !=# line('.') || prev_col < 0
+    return
+  endif
+  let cur_col = col('.')
+  if cur_col <= prev_col
+    return
+  endif
+  let typed = strpart(getline('.'), prev_col - 1, cur_col - prev_col)
+  let choice = get(b:_deepseek.suggestions, b:_deepseek.choice, {})
+  let suggestion = get(choice, 'text', '')
+  let suggestion = substitute(substitute(suggestion, '\r\n', '\n', 'g'), '\r', '\n', 'g')
+  let suggestion = split(suggestion, '\n')[0]
+  if strpart(suggestion, 0, len(typed)) !=# typed
+    call deepseek#Clear()
+  endif
+endfunction
+
 function! deepseek#OnBufUnload() abort
 endfunction
 
@@ -371,13 +419,20 @@ function! deepseek#TextQueuedForInsertion() abort
 endfunction
 
 function! deepseek#Accept(...) abort
-  let s = deepseek#GetDisplayedSuggestion()
-  if !empty(s.text)
+  let suggestion = deepseek#GetDisplayedSuggestion()
+  if !empty(suggestion.text)
     unlet! b:_deepseek
     call s:ClearPreview()
-    let s:suggestion_text = s.text
-    let recall = s.text =~# "\n" ? "\<C-R>\<C-O>=" : "\<C-R>\<C-R>="
-    return repeat("\<Left>\<Del>", s.outdentSize) . repeat("\<Del>", s.deleteSize) .
+    let text = suggestion.text
+    if a:0 > 1 && type(a:2) == v:t_string && !empty(a:2)
+      let partial = matchstr(text, a:2)
+      if !empty(partial)
+        let text = partial
+      endif
+    endif
+    let s:suggestion_text = text
+    let recall = text =~# "\n" ? "\<C-R>\<C-O>=" : "\<C-R>\<C-R>="
+    return repeat("\<Left>\<Del>", suggestion.outdentSize) . repeat("\<Del>", suggestion.deleteSize) .
           \ recall . "deepseek#TextQueuedForInsertion()\<CR>" . "\<End>"
   endif
   let default = get(g:, 'deepseek_tab_fallback', pumvisible() ? "\<C-N>" : "\t")
@@ -434,6 +489,11 @@ endfunction
 let s:commands = {}
 
 function! s:commands.status(opts) abort
+  let agent_error = deepseek#client#StartupError()
+  if !empty(agent_error)
+    echo 'Deepseek: ' . agent_error
+    return
+  endif
   if exists('s:startup_error')
     echo 'Deepseek: ' . s:startup_error
     return

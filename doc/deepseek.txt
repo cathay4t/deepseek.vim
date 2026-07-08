@@ -91,6 +91,14 @@ b:deepseek_enabled      Per-buffer enable override (v:true to force enable).
                         *b:deepseek_disabled*
 b:deepseek_disabled     Per-buffer disable override.
 
+                        *g:deepseek_context_before_lines*
+g:deepseek_context_before_lines
+                        Lines of context before cursor to send (default 100).
+
+                        *g:deepseek_context_after_lines*
+g:deepseek_context_after_lines
+                        Lines of context after cursor to send (default 50).
+
 ==============================================================================
 MAPPINGS                                        *deepseek-mappings*
 

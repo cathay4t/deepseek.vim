@@ -8,6 +8,8 @@ deepseek-options	deepseek.txt	/*deepseek-options*
 deepseek-usage	deepseek.txt	/*deepseek-usage*
 deepseek.txt	deepseek.txt	/*deepseek.txt*
 g:deepseek_api_key	deepseek.txt	/*g:deepseek_api_key*
+g:deepseek_context_after_lines	deepseek.txt	/*g:deepseek_context_after_lines*
+g:deepseek_context_before_lines	deepseek.txt	/*g:deepseek_context_before_lines*
 g:deepseek_enabled	deepseek.txt	/*g:deepseek_enabled*
 g:deepseek_filetypes	deepseek.txt	/*g:deepseek_filetypes*
 g:deepseek_hide_during_completion	deepseek.txt	/*g:deepseek_hide_during_completion*

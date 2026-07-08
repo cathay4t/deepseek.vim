@@ -24,6 +24,9 @@ function! s:RejectRequest(request, error) abort
 endfunction
 
 function! s:OnStdout(instance, ch, msg) abort
+  if !has_key(a:instance, 'job')
+    return
+  endif
   let a:instance.buffer .= a:msg
   while 1
     let nl = stridx(a:instance.buffer, "\n")
@@ -63,12 +66,39 @@ function! s:OnStdout(instance, ch, msg) abort
 endfunction
 
 function! s:OnStderr(instance, ch, msg, ...) abort
+  if !has_key(a:instance, 'stderr')
+    let a:instance.stderr = ''
+  endif
+  let a:instance.stderr .= a:msg
 endfunction
 
 function! s:OnExit(instance, job, code) abort
   let a:instance.exit_status = a:code
   if has_key(a:instance, 'job')
     call remove(a:instance, 'job')
+  endif
+  if !empty(a:instance.buffer) && stridx(a:instance.buffer, "\n") < 0
+    try
+      let response = json_decode(a:instance.buffer)
+      let id = get(response, 'id', v:null)
+      if has_key(a:instance.requests, id)
+        let request = remove(a:instance.requests, id)
+        if request.status ==# 'running'
+          if has_key(response, 'result')
+            let resolve = remove(request, 'resolve')
+            call remove(request, 'reject')
+            let request.status = 'success'
+            let request.result = response.result
+            for Cb in resolve
+              call Cb(request)
+            endfor
+          elseif has_key(response, 'error')
+            call s:RejectRequest(request, response.error)
+          endif
+        endif
+      endif
+    catch
+    endtry
   endif
   for id in sort(keys(a:instance.requests))
     call s:RejectRequest(remove(a:instance.requests, id), s:error_exit)
@@ -137,7 +167,10 @@ function! s:DoRequest(method, params, ...) dict abort
   endif
   let data = json_encode({'id': s:id, 'method': a:method, 'params': a:params}) . "\n"
   let self.requests[s:id] = request
-  call s:Send(self, data)
+  if !s:Send(self, data)
+    call remove(self.requests, s:id)
+    call s:RejectRequest(request, {'code': -32603, 'message': 'Failed to send request to agent'})
+  endif
   return request
 endfunction
 
@@ -209,8 +242,21 @@ function! deepseek#client#Start() abort
 endfunction
 
 function! deepseek#client#Running() abort
-  return exists('s:instance') && has_key(s:instance, 'job')
-        \ && job_status(s:instance.job) ==# 'run'
+  if !exists('s:instance') || !has_key(s:instance, 'job')
+    return v:false
+  endif
+  if job_status(s:instance.job) !=# 'run'
+    return v:false
+  endif
+  if !empty(get(s:instance, 'startup_error', v:null))
+    return v:false
+  endif
+  return v:true
+endfunction
+
+function! deepseek#client#StartupError() abort
+  let instance = get(s:, 'instance', {})
+  return get(instance, 'startup_error', v:null)
 endfunction
 
 function! deepseek#client#Instance() abort

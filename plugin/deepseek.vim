@@ -56,6 +56,7 @@ augroup deepseek_plugin
   autocmd InsertEnter          * call s:Event('InsertEnter')
   autocmd BufEnter             * if mode() =~# '^[iR]'|call s:Event('InsertEnter')|endif
   autocmd CursorMovedI         * call s:Event('CursorMovedI')
+  autocmd TextChangedI         * call s:Event('TextChangedI')
   autocmd CompleteChanged      * call s:Event('CompleteChanged')
   autocmd ColorScheme,VimEnter * call s:ColorScheme()
   autocmd VimEnter             * call s:MapTab() | call deepseek#Init()
